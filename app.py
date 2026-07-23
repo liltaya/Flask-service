@@ -1,3 +1,4 @@
+import os
 from flask import Flask, Response, jsonify, request
 from flask_sqlalchemy import SQLAlchemy
 from prometheus_client import CONTENT_TYPE_LATEST, Counter, generate_latest
@@ -5,8 +6,9 @@ from sqlalchemy.exc import SQLAlchemyError
 
 app = Flask(__name__)
 
-app.config["SQLALCHEMY_DATABASE_URI"] = (
-    "postgresql+psycopg://localhost/flask_service"
+app.config["SQLALCHEMY_DATABASE_URI"] = os.getenv(
+   "DATABASE_URL",
+ "postgresql+psycopg://localhost/flask_service",
 )
 app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
 
