@@ -1,0 +1,19 @@
+[Unit]
+Description=Flask Service API
+After=network.target postgresql.service
+Wants=postgresql.service
+
+[Service]
+Type=simple
+User=flaskapp
+Group=flaskapp
+WorkingDirectory=/opt/flask-service
+EnvironmentFile=/opt/flask-service/.env
+ExecStart=/opt/flask-service/.venv/bin/python /opt/flask-service/app.py
+Restart=on-failure
+RestartSec=5
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target

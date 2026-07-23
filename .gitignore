@@ -1,17 +1,9 @@
-.venv/
- .env 
- __pycache__/ 
- *.pyc 
- .DS_Store 
- 
- .pytest_cache/ 
- .coverage 
- htmlcov/
 .env
 .env.backup
-.coverage
+.venv/
 __pycache__/
 *.pyc
 .pytest_cache/
+.coverage
 htmlcov/
-.venv/
+.DS_Store
