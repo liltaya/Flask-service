@@ -1,6 +1,6 @@
 Flask Service
 
-REST API built with Flask, PostgreSQL, SQLAlchemy, Nginx, systemd, and Prometheus metrics.
+REST API built with Flask, PostgreSQL, SQLAlchemy, Nginx, Grafana, systemd, and Prometheus metrics.
 
 Features
 CRUD REST endpoints
