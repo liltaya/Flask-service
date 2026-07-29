@@ -1,0 +1,130 @@
+groups:
+  - name: application-alerts
+    interval: 15s
+    rules:
+      - alert: FlaskServiceDown
+        expr: up{job="flask-service"} == 0
+        for: 1m
+        labels:
+          severity: critical
+          service: flask-service
+        annotations:
+          summary: "Flask service is unavailable"
+          description: "Prometheus cannot scrape {{ $labels.instance }} for more than 1 minute."
+
+      - alert: FlaskApplicationNotReady
+        expr: application_up{job="flask-service"} != 1
+        for: 1m
+        labels:
+          severity: critical
+          service: flask-service
+        annotations:
+          summary: "Flask application reports unhealthy state"
+          description: "application_up is not equal to 1 on {{ $labels.instance }}."
+
+      - alert: FlaskHighErrorRate
+        expr: |
+          (
+            sum(rate(application_requests_total{
+              job="flask-service",
+              status=~"5.."
+            }[5m]))
+            /
+            clamp_min(
+              sum(rate(application_requests_total{
+                job="flask-service"
+              }[5m])),
+              0.001
+            )
+          ) > 0.05
+        for: 5m
+        labels:
+          severity: warning
+          service: flask-service
+        annotations:
+          summary: "High Flask HTTP error rate"
+          description: "More than 5% of Flask responses have status 5xx."
+
+      - alert: FlaskHighLatency
+        expr: |
+          histogram_quantile(
+            0.95,
+            sum by (le) (
+              rate(application_request_duration_seconds_bucket{
+                job="flask-service"
+              }[5m])
+            )
+          ) > 1
+        for: 5m
+        labels:
+          severity: warning
+          service: flask-service
+        annotations:
+          summary: "High Flask request latency"
+          description: "The 95th percentile request latency is above 1 second."
+
+  - name: host-alerts
+    interval: 15s
+    rules:
+      - alert: NodeExporterDown
+        expr: up{job="node"} == 0
+        for: 1m
+        labels:
+          severity: critical
+          service: node-exporter
+        annotations:
+          summary: "Node Exporter is unavailable"
+          description: "Prometheus cannot scrape {{ $labels.instance }}."
+
+      - alert: HostHighCPU
+        expr: |
+          100 - (
+            avg by (instance) (
+              rate(node_cpu_seconds_total{
+                job="node",
+                mode="idle"
+              }[5m])
+            ) * 100
+          ) > 90
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High CPU usage"
+          description: "CPU usage on {{ $labels.instance }} is above 90%."
+
+      - alert: HostHighMemory
+        expr: |
+          100 * (
+            1 -
+            node_memory_MemAvailable_bytes{job="node"}
+            /
+            node_memory_MemTotal_bytes{job="node"}
+          ) > 90
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High memory usage"
+          description: "Memory usage on {{ $labels.instance }} is above 90%."
+
+      - alert: HostDiskAlmostFull
+        expr: |
+          100 * (
+            1 -
+            node_filesystem_avail_bytes{
+              job="node",
+              fstype!~"tmpfs|overlay|squashfs"
+            }
+            /
+            node_filesystem_size_bytes{
+              job="node",
+              fstype!~"tmpfs|overlay|squashfs"
+            }
+          ) > 85
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Filesystem is almost full"
+          description: "{{ $labels.mountpoint }} on {{ $labels.instance }} is more than 85% full."

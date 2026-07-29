@@ -164,6 +164,9 @@ def get_item(item_id):
                 "error": "Database error"
             }
         ), 500
+@app.get("/test/error")
+def test_error():
+    return {"error": "simulated failure"}, 500
 
 
 @app.post("/items")
