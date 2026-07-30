@@ -17,6 +17,7 @@ Usage:
 from __future__ import annotations
 
 import argparse
+import csv
 import ipaddress
 import json
 import re
@@ -24,7 +25,7 @@ import sys
 from collections import Counter, defaultdict
 from dataclasses import asdict, dataclass
 from pathlib import Path
-from typing import Iterable
+from typing import Iterable, TextIO
 from urllib.parse import unquote
 
 
@@ -252,6 +253,45 @@ def print_text_report(report: dict) -> None:
         print(f"... {truncated} additional suspicious events omitted")
 
 
+def write_csv_report(report: dict, stream: TextIO) -> None:
+    writer = csv.writer(stream)
+    writer.writerow(["section", "key", "value", "extra"])
+
+    for key, value in report["summary"].items():
+        writer.writerow(["summary", key, value, ""])
+
+    for status, count in report["status_codes"].items():
+        writer.writerow(["status_code", status, count, ""])
+
+    for status_class, count in report["status_classes"].items():
+        writer.writerow(["status_class", status_class, count, ""])
+
+    for ip, count in report["top_ips"]:
+        writer.writerow(["top_ip", ip, count, ""])
+
+    for reason, count in report["suspicious"]["by_reason"]:
+        writer.writerow(["suspicious_reason", reason, count, ""])
+
+    for ip, count in report["suspicious"]["top_ips"]:
+        writer.writerow(["suspicious_ip", ip, count, ""])
+
+    for event in report["suspicious"]["events"]:
+        writer.writerow([
+            "suspicious_event",
+            event["ip"],
+            event["status"],
+            json.dumps(
+                {
+                    "line_number": event["line_number"],
+                    "method": event["method"],
+                    "target": event["target"],
+                    "reasons": event["reasons"],
+                },
+                ensure_ascii=False,
+            ),
+        ])
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         description="Analyze Nginx/Apache common or combined access logs."
@@ -268,11 +308,37 @@ def build_parser() -> argparse.ArgumentParser:
         help="Number of top IPs and suspicious samples to show (default: 10).",
     )
     parser.add_argument(
+        "--format",
+        choices=("text", "json", "csv"),
+        default="text",
+        help="Output format (default: text).",
+    )
+    parser.add_argument(
+        "--output",
+        type=Path,
+        help="Write output to a file instead of stdout.",
+    )
+    parser.add_argument(
         "--json",
         action="store_true",
-        help="Print the report as JSON.",
+        help="Deprecated alias for --format json.",
     )
     return parser
+
+
+def emit_report(report: dict, output_format: str, stream: TextIO) -> None:
+    if output_format == "json":
+        json.dump(report, stream, indent=2, ensure_ascii=False)
+        stream.write("\n")
+    elif output_format == "csv":
+        write_csv_report(report, stream)
+    else:
+        old_stdout = sys.stdout
+        try:
+            sys.stdout = stream
+            print_text_report(report)
+        finally:
+            sys.stdout = old_stdout
 
 
 def main() -> int:
@@ -281,6 +347,8 @@ def main() -> int:
 
     if args.top < 1:
         parser.error("--top must be greater than zero")
+
+    output_format = "json" if args.json else args.format
 
     try:
         if str(args.log_file) == "-":
@@ -298,11 +366,15 @@ def main() -> int:
         print(f"error: cannot read {args.log_file}: {exc}", file=sys.stderr)
         return 2
 
-    if args.json:
-        json.dump(report, sys.stdout, indent=2, ensure_ascii=False)
-        print()
-    else:
-        print_text_report(report)
+    try:
+        if args.output:
+            with args.output.open("w", encoding="utf-8", newline="") as stream:
+                emit_report(report, output_format, stream)
+        else:
+            emit_report(report, output_format, sys.stdout)
+    except OSError as exc:
+        print(f"error: cannot write output: {exc}", file=sys.stderr)
+        return 2
 
     return 0
 
