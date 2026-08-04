@@ -1,45 +1,61 @@
 services:
   db:
-    image: postgres:18-alpine
+    image: postgres:17
+    container_name: flask-service-db
     restart: unless-stopped
+
     environment:
-      POSTGRES_DB: ${POSTGRES_DB:-flask_service}
-      POSTGRES_USER: ${POSTGRES_USER:-flask_service_user}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env.docker}
+      POSTGRES_DB: ${POSTGRES_DB:?POSTGRES_DB is required}
+      POSTGRES_USER: ${POSTGRES_USER:?POSTGRES_USER is required}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}
+
     volumes:
-      - postgres_data:/var/lib/postgresql
+      - postgres_data:/var/lib/postgresql/data
+
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U \"$${POSTGRES_USER}\" -d \"$${POSTGRES_DB}\""]
+      test:
+        [
+          "CMD-SHELL",
+          "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}",
+        ]
       interval: 5s
       timeout: 5s
       retries: 10
       start_period: 10s
-    networks: [backend]
 
   api:
     build:
       context: .
       dockerfile: Dockerfile
+
+    container_name: flask-service-api
     restart: unless-stopped
+
     environment:
-      DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-flask_service_user}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB:-flask_service}
-      FLASK_DEBUG: "0"
+      DATABASE_URL: postgresql+psycopg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}
+      GUNICORN_WORKERS: ${GUNICORN_WORKERS:-1}
+      GUNICORN_TIMEOUT: ${GUNICORN_TIMEOUT:-30}
+
     depends_on:
       db:
         condition: service_healthy
+
     ports:
       - "127.0.0.1:5000:5000"
+
     healthcheck:
-      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:5000/health', timeout=3)"]
-      interval: 15s
+      test:
+        [
+          "CMD",
+          "python",
+          "-c",
+          "import urllib.request; urllib.request.urlopen('http://127.0.0.1:5000/health', timeout=3)",
+        ]
+      interval: 10s
       timeout: 5s
       retries: 5
       start_period: 20s
-    networks: [backend]
 
 volumes:
   postgres_data:
-
-networks:
-  backend:
-    driver: bridge
+    name: flask_service_postgres_data
