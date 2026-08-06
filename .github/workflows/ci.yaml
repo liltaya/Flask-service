@@ -1,17 +1,23 @@
 name: CI
+
 on:
-push:
-branches:
--main
-pull_request:
-branches:
-- main
-workflow_dispatch:
+  push:
+    branches:
+      - main
+
+  pull_request:
+    branches:
+      - main
+
+  workflow_dispatch:
+
 permissions:
-contents: read
+  contents: read
+
 env:
-PYTHON_VERSION: "3.11"
-DATABASE_URL: "postgresql+psycopg://flask_service_user:flask_service_password@127.0.0.1:5432/flask_service"
+  PYTHON_VERSION: "3.11"
+  DATABASE_URL: "postgresql+psycopg://flask_service_user:flask_service_password@127.0.0.1:5432/flask_service"
+
 jobs:
   lint:
     name: Linting
