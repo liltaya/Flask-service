@@ -22,20 +22,20 @@ import ipaddress
 import json
 import re
 import sys
-from collections import Counter, defaultdict
+from collections import Counter
+from collections.abc import Iterable
 from dataclasses import asdict, dataclass
 from pathlib import Path
-from typing import Iterable, TextIO
+from typing import TextIO
 from urllib.parse import unquote
 
-
 LOG_PATTERN = re.compile(
-    r'^(?P<ip>\S+)\s+'
-    r'\S+\s+\S+\s+'
-    r'\[(?P<time>[^\]]+)\]\s+'
+    r"^(?P<ip>\S+)\s+"
+    r"\S+\s+\S+\s+"
+    r"\[(?P<time>[^\]]+)\]\s+"
     r'"(?P<method>[A-Z]+|-)\s+(?P<target>\S+)(?:\s+HTTP/(?P<http_version>[^"]+))?"\s+'
-    r'(?P<status>\d{3})\s+'
-    r'(?P<size>\d+|-)'
+    r"(?P<status>\d{3})\s+"
+    r"(?P<size>\d+|-)"
     r'(?:\s+"(?P<referer>[^"]*)"\s+"(?P<user_agent>[^"]*)")?'
 )
 
@@ -276,20 +276,22 @@ def write_csv_report(report: dict, stream: TextIO) -> None:
         writer.writerow(["suspicious_ip", ip, count, ""])
 
     for event in report["suspicious"]["events"]:
-        writer.writerow([
-            "suspicious_event",
-            event["ip"],
-            event["status"],
-            json.dumps(
-                {
-                    "line_number": event["line_number"],
-                    "method": event["method"],
-                    "target": event["target"],
-                    "reasons": event["reasons"],
-                },
-                ensure_ascii=False,
-            ),
-        ])
+        writer.writerow(
+            [
+                "suspicious_event",
+                event["ip"],
+                event["status"],
+                json.dumps(
+                    {
+                        "line_number": event["line_number"],
+                        "method": event["method"],
+                        "target": event["target"],
+                        "reasons": event["reasons"],
+                    },
+                    ensure_ascii=False,
+                ),
+            ]
+        )
 
 
 def build_parser() -> argparse.ArgumentParser:

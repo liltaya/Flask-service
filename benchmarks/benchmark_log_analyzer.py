@@ -3,9 +3,9 @@ from __future__ import annotations
 
 import argparse
 import random
+import sys
 import tempfile
 import time
-import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -24,11 +24,13 @@ def generate_log(path: Path, rows: int, seed: int = 42) -> None:
     with path.open("w", encoding="utf-8") as handle:
         for index in range(rows):
             ip = f"10.{(index // 65536) % 256}.{(index // 256) % 256}.{index % 256}"
-            target = rng.choice(suspicious) if index % 10000 == 0 else rng.choice(targets)
+            target = (
+                rng.choice(suspicious) if index % 10000 == 0 else rng.choice(targets)
+            )
             status = rng.choice(statuses)
             ua = "sqlmap/1.8" if index % 25000 == 0 else "benchmark-client/1.0"
             handle.write(
-                f'{ip} - - [29/Jul/2026:17:10:41 -0700] '
+                f"{ip} - - [29/Jul/2026:17:10:41 -0700] "
                 f'"GET {target} HTTP/1.1" {status} 42 "-" "{ua}"\n'
             )
 
