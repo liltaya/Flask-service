@@ -5,7 +5,7 @@ from tools.log_analyzer import analyze, parse_line, suspicious_reasons, write_cs
 
 def line(ip="127.0.0.1", method="GET", target="/", status=200, ua="curl/8.5.0"):
     return (
-        f'{ip} - - [29/Jul/2026:17:10:41 -0700] '
+        f"{ip} - - [29/Jul/2026:17:10:41 -0700] "
         f'"{method} {target} HTTP/1.1" {status} 42 "-" "{ua}"\n'
     )
 
@@ -27,11 +27,14 @@ def test_status_codes_and_error_rate():
 
 
 def test_top_ips():
-    report = analyze([
-        line(ip="10.0.0.1"),
-        line(ip="10.0.0.1"),
-        line(ip="10.0.0.2"),
-    ], top=1)
+    report = analyze(
+        [
+            line(ip="10.0.0.1"),
+            line(ip="10.0.0.1"),
+            line(ip="10.0.0.2"),
+        ],
+        top=1,
+    )
     assert report["top_ips"] == [("10.0.0.1", 2)]
 
 

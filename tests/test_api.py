@@ -1,3 +1,8 @@
+from unittest.mock import patch
+
+from sqlalchemy.exc import SQLAlchemyError
+
+
 def create_item(client, name="Apple"):
     return client.post(
         "/items",
@@ -135,9 +140,9 @@ def test_create_without_json(client):
         content_type="text/plain",
     )
 
-    assert response.status_code == 400
+    assert response.status_code == 415
     assert response.get_json() == {
-        "error": "Request body must contain valid JSON",
+        "error": "Content-Type must be application/json",
     }
 
 
@@ -227,4 +232,100 @@ def test_metrics(client):
 
     assert response.status_code == 200
     assert b"application_requests_total" in response.data
-    
+
+
+def test_health_database_error(client):
+    with patch(
+        "app.db.session.execute",
+        side_effect=SQLAlchemyError("database unavailable"),
+    ):
+        response = client.get("/health")
+
+    assert response.status_code == 503
+    assert response.get_json() == {
+        "status": "error",
+        "database": "disconnected",
+    }
+
+
+def test_get_items_database_error(client):
+    with patch(
+        "app.db.session.execute",
+        side_effect=SQLAlchemyError("database unavailable"),
+    ):
+        response = client.get("/items")
+
+    assert response.status_code == 500
+    assert response.get_json() == {
+        "error": "Database error",
+    }
+
+
+def test_get_item_database_error(client):
+    with patch(
+        "app.db.session.get",
+        side_effect=SQLAlchemyError("database unavailable"),
+    ):
+        response = client.get("/items/1")
+
+    assert response.status_code == 500
+    assert response.get_json() == {
+        "error": "Database error",
+    }
+
+
+def test_create_item_database_error(client):
+    with patch(
+        "app.db.session.commit",
+        side_effect=SQLAlchemyError("database unavailable"),
+    ):
+        response = client.post(
+            "/items",
+            json={"name": "Apple"},
+        )
+
+    assert response.status_code == 500
+    assert response.get_json() == {
+        "error": "Database error",
+    }
+
+
+def test_update_item_database_error(client):
+    create_response = client.post(
+        "/items",
+        json={"name": "Apple"},
+    )
+    item_id = create_response.get_json()["id"]
+
+    with patch(
+        "app.db.session.commit",
+        side_effect=SQLAlchemyError("database unavailable"),
+    ):
+        response = client.put(
+            f"/items/{item_id}",
+            json={"name": "Updated"},
+        )
+
+    assert response.status_code == 500
+    assert response.get_json() == {
+        "error": "Database error",
+    }
+
+
+def test_delete_item_database_error(client):
+    create_response = client.post(
+        "/items",
+        json={"name": "Apple"},
+    )
+    item_id = create_response.get_json()["id"]
+
+    with patch(
+        "app.db.session.commit",
+        side_effect=SQLAlchemyError("database unavailable"),
+    ):
+        response = client.delete(f"/items/{item_id}")
+
+    assert response.status_code == 500
+    assert response.get_json() == {
+        "error": "Database error",
+    }

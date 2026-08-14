@@ -1,18 +1,26 @@
 import os
+
 from flask import Flask, Response, jsonify, request
 from flask_sqlalchemy import SQLAlchemy
-from prometheus_client import CONTENT_TYPE_LATEST, Counter, generate_latest
+from prometheus_client import CONTENT_TYPE_LATEST, Counter, Gauge, generate_latest
+from sqlalchemy import String
 from sqlalchemy.exc import SQLAlchemyError
+from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 
 app = Flask(__name__)
 
 app.config["SQLALCHEMY_DATABASE_URI"] = os.getenv(
-   "DATABASE_URL",
- "postgresql+psycopg://localhost/flask_service",
+    "DATABASE_URL",
+    "postgresql+psycopg://localhost/flask_service",
 )
 app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
 
-db = SQLAlchemy(app)
+
+class Base(DeclarativeBase):
+    pass
+
+
+db = SQLAlchemy(app, model_class=Base)
 
 request_counter = Counter(
     "application_requests_total",
@@ -20,12 +28,19 @@ request_counter = Counter(
     ["method", "endpoint", "status"],
 )
 
+application_up = Gauge(
+    "application_up",
+    "Whether the application is running",
+)
 
-class Item(db.Model):
+application_up.set(1)
+
+
+class Item(Base):
     __tablename__ = "items"
 
-    id = db.Column(db.Integer, primary_key=True)
-    name = db.Column(db.String(200), nullable=False)
+    id: Mapped[int] = mapped_column(primary_key=True)
+    name: Mapped[str] = mapped_column(String(200))
 
     def to_dict(self):
         return {
@@ -121,9 +136,7 @@ def metrics():
 @app.get("/items")
 def get_items():
     try:
-        items = db.session.execute(
-            db.select(Item).order_by(Item.id)
-        ).scalars().all()
+        items = db.session.execute(db.select(Item).order_by(Item.id)).scalars().all()
 
         return jsonify(
             {
@@ -135,11 +148,7 @@ def get_items():
     except SQLAlchemyError:
         app.logger.exception("Could not get items")
 
-        return jsonify(
-            {
-                "error": "Database error"
-            }
-        ), 500
+        return jsonify({"error": "Database error"}), 500
 
 
 @app.get("/items/<int:item_id>")
@@ -148,22 +157,16 @@ def get_item(item_id):
         item = db.session.get(Item, item_id)
 
         if item is None:
-            return jsonify(
-                {
-                    "error": "Item not found"
-                }
-            ), 404
+            return jsonify({"error": "Item not found"}), 404
 
         return jsonify(item.to_dict()), 200
 
     except SQLAlchemyError:
         app.logger.exception("Could not get item")
 
-        return jsonify(
-            {
-                "error": "Database error"
-            }
-        ), 500
+        return jsonify({"error": "Database error"}), 500
+
+
 @app.get("/test/error")
 def test_error():
     return {"error": "simulated failure"}, 500
@@ -171,21 +174,18 @@ def test_error():
 
 @app.post("/items")
 def create_item():
+    if not request.is_json:
+        return jsonify({"error": "Content-Type must be application/json"}), 415
+
     data = request.get_json(silent=True)
 
     validation_error = validate_item_data(data)
 
-    if validation_error:
-        return jsonify(
-            {
-                "error": validation_error
-            }
-        ), 400
+    if validation_error or not isinstance(data, dict):
+        return jsonify({"error": validation_error}), 400
 
     try:
-        item = Item(
-            name=data["name"].strip()
-        )
+        item = Item(name=data["name"].strip())
 
         db.session.add(item)
         db.session.commit()
@@ -196,35 +196,26 @@ def create_item():
         db.session.rollback()
         app.logger.exception("Could not create item")
 
-        return jsonify(
-            {
-                "error": "Database error"
-            }
-        ), 500
+        return jsonify({"error": "Database error"}), 500
 
 
 @app.put("/items/<int:item_id>")
 def update_item(item_id):
+    if not request.is_json:
+        return jsonify({"error": "Content-Type must be application/json"}), 415
+
     data = request.get_json(silent=True)
 
     validation_error = validate_item_data(data)
 
-    if validation_error:
-        return jsonify(
-            {
-                "error": validation_error
-            }
-        ), 400
+    if validation_error or not isinstance(data, dict):
+        return jsonify({"error": validation_error}), 400
 
     try:
         item = db.session.get(Item, item_id)
 
         if item is None:
-            return jsonify(
-                {
-                    "error": "Item not found"
-                }
-            ), 404
+            return jsonify({"error": "Item not found"}), 404
 
         item.name = data["name"].strip()
 
@@ -236,11 +227,7 @@ def update_item(item_id):
         db.session.rollback()
         app.logger.exception("Could not update item")
 
-        return jsonify(
-            {
-                "error": "Database error"
-            }
-        ), 500
+        return jsonify({"error": "Database error"}), 500
 
 
 @app.delete("/items/<int:item_id>")
@@ -249,11 +236,7 @@ def delete_item(item_id):
         item = db.session.get(Item, item_id)
 
         if item is None:
-            return jsonify(
-                {
-                    "error": "Item not found"
-                }
-            ), 404
+            return jsonify({"error": "Item not found"}), 404
 
         db.session.delete(item)
         db.session.commit()
@@ -269,40 +252,24 @@ def delete_item(item_id):
         db.session.rollback()
         app.logger.exception("Could not delete item")
 
-        return jsonify(
-            {
-                "error": "Database error"
-            }
-        ), 500
+        return jsonify({"error": "Database error"}), 500
 
 
 @app.errorhandler(404)
 def handle_not_found(error):
-    return jsonify(
-        {
-            "error": "Endpoint not found"
-        }
-    ), 404
+    return jsonify({"error": "Endpoint not found"}), 404
 
 
 @app.errorhandler(405)
 def handle_method_not_allowed(error):
-    return jsonify(
-        {
-            "error": "Method not allowed"
-        }
-    ), 405
+    return jsonify({"error": "Method not allowed"}), 405
 
 
 @app.errorhandler(500)
 def handle_internal_error(error):
     db.session.rollback()
 
-    return jsonify(
-        {
-            "error": "Internal server error"
-        }
-    ), 500
+    return jsonify({"error": "Internal server error"}), 500
 
 
 if __name__ == "__main__":
