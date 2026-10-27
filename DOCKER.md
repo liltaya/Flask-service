@@ -1,7 +1,7 @@
 # Flask API with PostgreSQL in Docker Compose
 
 ```bash
-cp .env.docker.example .env.docker
+cp .env.docker
 nano .env.docker
 
 docker compose --env-file .env.docker config
