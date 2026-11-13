@@ -1,18 +1,16 @@
-# README
-
 # Flask Service: Operational Data Platform and Log Analyzer
 
-!CI
-
-Python
-
-Flask
-
-PostgreSQL
-
-Docker
+[![CI](https://github.com/liltaya/Flask-service/actions/workflows/ci.yaml/badge.svg)](https://github.com/liltaya/Flask-service/actions/workflows/ci.yaml)
+![Python](https://img.shields.io/badge/Python-3.11-3776AB?logo=python&logoColor=white)
+![Flask](https://img.shields.io/badge/Flask-3.1-000000?logo=flask&logoColor=white)
+![PostgreSQL](https://img.shields.io/badge/PostgreSQL-17-4169E1?logo=postgresql&logoColor=white)
+![Docker](https://img.shields.io/badge/Docker-Compose-2496ED?logo=docker&logoColor=white)
 
 A REST API built with Flask, SQLAlchemy and PostgreSQL, deployed on Linux behind Nginx and systemd (or Docker Compose), with Prometheus metrics for Grafana. The repository also includes a command-line log analyzer for Nginx and Apache access logs.
+
+![Prometheus graph of requests per second by HTTP status while the API served nine minutes of mixed traffic through Nginx](docs/images/prometheus-requests.png)
+
+<sub>Prometheus scraping `/metrics` while the API answers mixed traffic through Nginx: requests per second by status code.</sub>
 
 ## Features
 
@@ -32,6 +30,12 @@ Client --> Nginx --> Flask API (systemd or Docker Compose) --> PostgreSQL
                           |
                       /metrics --> Prometheus --> Grafana
 ```
+
+Prometheus scrapes the API, Node Exporter and itself, and evaluates the alert rules in `deploy/prometheus/rules/`:
+
+| Scrape targets | Application alert rules |
+| --- | --- |
+| ![Prometheus targets page with the flask-service, node and prometheus jobs all up](docs/images/prometheus-targets.png) | ![Prometheus alerts page with the four application alert rules inactive](docs/images/prometheus-alerts.png) |
 
 ## API endpoints
 
@@ -185,6 +189,10 @@ Delete an item:
 curl -i -X DELETE http://127.0.0.1/items/1
 ```
 
+A session through Nginx, with validation errors and the request counters on `/metrics`:
+
+![Terminal session: health check, creating an item, 400, 415 and 404 errors, and the application_requests_total counters](docs/images/api-through-nginx.png)
+
 ## Input validation
 
 The API validates:
@@ -236,6 +244,12 @@ Benchmark on generated data (1,000,000 rows by default):
 python benchmarks/benchmark_log_analyzer.py --rows 1000000
 ```
 
+On 1,000,000 generated lines (96.77 MiB) the analyzer takes 16.2 s, about 61,700 lines per second.
+
+The report below comes from the Nginx access log of a local run, after a few path traversal, SQL injection, XSS and scanner requests were sent alongside normal traffic:
+
+![Log analyzer text report: 3,239 requests, 8.43 percent errors and six flagged requests with their reasons](docs/images/log-report.png)
+
 ## Tests and CI
 
 ```bash
@@ -243,7 +257,9 @@ pip install -r requirements-dev.txt
 pytest -v
 ```
 
-GitHub Actions runs four jobs on every push and pull request to `main`: Ruff (lint and format), mypy, pytest against PostgreSQL, and coverage.
+GitHub Actions runs four jobs on every push and pull request to `main`: Ruff (lint and format), mypy, pytest against PostgreSQL, and coverage. The coverage job fails below 80 %.
+
+![pytest run: 38 passed with 93 percent coverage of app.py](docs/images/pytest-coverage.png)
 
 ## Logs
 
@@ -269,4 +285,4 @@ sudo tail -n 100 /var/log/nginx/error.log
 
 ## Author
 
-Taisiia (Taya) Mamenko · Portfolio · GitHub
+Taisiia (Taya) Mamenko · [Portfolio](https://liltaya.github.io) · [GitHub](https://github.com/liltaya)
